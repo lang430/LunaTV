@@ -1,19 +1,29 @@
-# Cloudflare Pages 部署配置（配合 @cloudflare/next-on-pages）
-# 构建：CF_BUILD=1 pnpm dlx @cloudflare/next-on-pages
-# 部署：pnpm dlx wrangler pages deploy .vercel/output
+# Cloudflare Pages 部署配置（next-on-pages 输出）。
+# 由 `pnpm cf:pages:build` 生成 .vercel/output/ 后，用 `pnpm cf:pages:deploy` 部署。
 
-name = "moontv-pages"
-compatibility_date = "2025-04-01"
+name = "moontv"
+pages_build_output_dir = ".vercel/output/static"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# next-on-pages 的输出目录
-pages_build_output_dir = ".vercel/output"
-
-# 非敏感变量（会注入到构建/运行时环境变量）
+# ──────────────────────────────────────────────────────────────
+# 仅「非密钥」运行时变量。
+#
+# 1) NEXT_PUBLIC_* 是【构建期内联】变量：必须在 `next build` 阶段以环境
+#    变量提供（见 README「环境变量矩阵」）。写入此处只对「服务端运行时
+#    读取」生效，不会内联进客户端包。
+#
+# 2) 密钥类（UPSTASH_URL / UPSTASH_TOKEN / USERNAME / PASSWORD）请用
+#    `pnpm cf:secret:pages` 以【加密 Secret】注入，切勿写入本文件。
+# ──────────────────────────────────────────────────────────────
 [vars]
+ANNOUNCEMENT = ""
 NEXT_PUBLIC_STORAGE_TYPE = "upstash"
-
-# 敏感凭据请使用 Secret（不要明文写在这里）：
-#   pnpm dlx wrangler pages secret put UPSTASH_URL
-#   pnpm dlx wrangler pages secret put UPSTASH_TOKEN
-# 其余 MoonTV 所需的环境变量（如站点设置相关）同样通过 secret 注入。
+NEXT_PUBLIC_SITE_NAME = "MoonTV"
+NEXT_PUBLIC_SEARCH_MAX_PAGE = "5"
+NEXT_PUBLIC_DOUBAN_PROXY_TYPE = "cmliussss-cdn-tencent"
+NEXT_PUBLIC_DOUBAN_PROXY = ""
+NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE = "cmliussss-cdn-tencent"
+NEXT_PUBLIC_DOUBAN_IMAGE_PROXY = ""
+NEXT_PUBLIC_DISABLE_YELLOW_FILTER = "false"
+NEXT_PUBLIC_FLUID_SEARCH = "true"

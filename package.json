@@ -17,10 +17,15 @@
     "gen:manifest": "node scripts/generate-manifest.js",
     "postbuild": "echo 'Build completed - sitemap generation disabled'",
     "prepare": "husky install",
-    "cf:pages:build": "CF_BUILD=1 pnpm dlx @cloudflare/next-on-pages",
-    "cf:pages:deploy": "pnpm dlx wrangler pages deploy .vercel/output",
-    "cf:workers:build": "CF_BUILD=1 pnpm dlx @opennextjs/cloudflare build",
-    "cf:workers:deploy": "pnpm dlx wrangler deploy"
+    "cf:workers:install": "pnpm add -D open-next @opennextjs/cloudflare",
+    "cf:workers:build": "CF_BUILD=1 pnpm build && open-next build",
+    "cf:workers:deploy": "pnpm dlx wrangler deploy",
+    "cf:pages:install": "pnpm add -D @cloudflare/next-on-pages",
+    "cf:pages:build": "CF_BUILD=1 pnpm build && pnpm exec @cloudflare/next-on-pages",
+    "cf:pages:deploy": "pnpm dlx wrangler pages deploy .vercel/output/static",
+    "cf:pages:dev": "pnpm dlx wrangler pages dev .vercel/output/static",
+    "cf:secret:workers": "pnpm dlx wrangler secret put UPSTASH_URL && pnpm dlx wrangler secret put UPSTASH_TOKEN && pnpm dlx wrangler secret put USERNAME && pnpm dlx wrangler secret put PASSWORD",
+    "cf:secret:pages": "pnpm dlx wrangler pages secret put UPSTASH_URL && pnpm dlx wrangler pages secret put UPSTASH_TOKEN && pnpm dlx wrangler pages secret put USERNAME && pnpm dlx wrangler pages secret put PASSWORD"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

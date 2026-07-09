@@ -1,0 +1,27 @@
+# 本地开发用环境变量模板（Cloudflare Workers / Pages 的 `wrangler dev` 会读取 .dev.vars）
+#
+# 用法：
+#   1) 复制本文件为 .dev.vars：  cp .dev.vars.example .dev.vars
+#   2) 填入真实值（UPSTASH_URL / UPSTASH_TOKEN / USERNAME / PASSWORD 必填）
+#   3) 运行 `pnpm dlx wrangler dev`（Workers）或 `pnpm cf:pages:dev`（Pages）
+#
+# 注意：.dev.vars 已被 .gitignore 忽略，切勿提交到仓库。
+# 生产环境请使用 `pnpm cf:secret:workers` / `pnpm cf:secret:pages` 注入 Secret。
+
+# ───── 构建期内联变量（同时需在构建环境中 export，供 next build 内联进客户端包）─────
+NEXT_PUBLIC_STORAGE_TYPE=upstash
+NEXT_PUBLIC_SITE_NAME=MoonTV
+NEXT_PUBLIC_SEARCH_MAX_PAGE=5
+NEXT_PUBLIC_DOUBAN_PROXY_TYPE=cmliussss-cdn-tencent
+NEXT_PUBLIC_DOUBAN_PROXY=
+NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE=cmliussss-cdn-tencent
+NEXT_PUBLIC_DOUBAN_IMAGE_PROXY=
+NEXT_PUBLIC_DISABLE_YELLOW_FILTER=false
+NEXT_PUBLIC_FLUID_SEARCH=true
+
+# ───── 服务端运行时变量（非公开，生产由 Cloudflare Secret 注入）─────
+ANNOUNCEMENT=
+UPSTASH_URL=https://your-upstash-instance.upstash.io
+UPSTASH_TOKEN=your-upstash-token
+USERNAME=admin
+PASSWORD=your-strong-password

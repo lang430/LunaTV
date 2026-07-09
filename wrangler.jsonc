@@ -2,7 +2,7 @@
   // Cloudflare Workers 部署配置（OpenNext 输出）。
   // 由 `pnpm cf:workers:build` 生成 .open-next/ 后，用 `pnpm cf:workers:deploy` 部署。
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "moontv",
+  "name": "timtv",
   // OpenNext for Cloudflare 的 Worker 入口（若构建产物文件名不同，请相应调整）。
   "main": ".open-next/worker.js",
   "compatibility_date": "2024-09-23",

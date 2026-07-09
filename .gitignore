@@ -42,6 +42,9 @@ wrangler.toml.djamallexist
 *.tsbuildinfo
 next-env.d.ts
 
+# workspace local memory (contains sensitive tokens, never commit)
+.workbuddy/
+
 # next-sitemap
 sitemap.xml
 sitemap-*.xml

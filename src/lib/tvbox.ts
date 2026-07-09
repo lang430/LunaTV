@@ -68,7 +68,7 @@ function isUrl(s?: string): boolean {
  * 生成合法的 MoonTV 资源 key：小写字母/数字/下划线，去除首尾下划线，并保证唯一。
  */
 function sanitizeKey(input: string, used: Set<string>): string {
-  let base =
+  const base =
     (input || '')
       .toLowerCase()
       .replace(/[^a-z0-9_]+/g, '_')

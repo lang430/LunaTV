@@ -16,7 +16,11 @@
     "format:check": "prettier -c .",
     "gen:manifest": "node scripts/generate-manifest.js",
     "postbuild": "echo 'Build completed - sitemap generation disabled'",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "cf:pages:build": "CF_BUILD=1 pnpm dlx @cloudflare/next-on-pages",
+    "cf:pages:deploy": "pnpm dlx wrangler pages deploy .vercel/output",
+    "cf:workers:build": "CF_BUILD=1 pnpm dlx @opennextjs/cloudflare build",
+    "cf:workers:deploy": "pnpm dlx wrangler deploy"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,0 +1,19 @@
+# Cloudflare Pages 部署配置（配合 @cloudflare/next-on-pages）
+# 构建：CF_BUILD=1 pnpm dlx @cloudflare/next-on-pages
+# 部署：pnpm dlx wrangler pages deploy .vercel/output
+
+name = "moontv-pages"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# next-on-pages 的输出目录
+pages_build_output_dir = ".vercel/output"
+
+# 非敏感变量（会注入到构建/运行时环境变量）
+[vars]
+NEXT_PUBLIC_STORAGE_TYPE = "upstash"
+
+# 敏感凭据请使用 Secret（不要明文写在这里）：
+#   pnpm dlx wrangler pages secret put UPSTASH_URL
+#   pnpm dlx wrangler pages secret put UPSTASH_TOKEN
+# 其余 MoonTV 所需的环境变量（如站点设置相关）同样通过 secret 注入。

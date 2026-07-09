@@ -32,6 +32,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cloudflare (opennext / next-on-pages 构建产物 & 本地密钥)
+.open-next
+.dev.vars
+.wrangler
+wrangler.toml.djamallexist
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

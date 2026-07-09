@@ -7,10 +7,6 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
-  // 让自定义域名也指向本 Worker（Workers Builds 自动部署时会同步）。
-  "routes": [
-    { "pattern": "timtv.cc.cd", "custom_domain": true }
-  ],
   // 静态资源绑定。OpenNext 将客户端产物输出到 .open-next/assets。
   "assets": {
     "binding": "ASSETS",

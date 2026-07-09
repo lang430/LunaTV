@@ -297,6 +297,14 @@ MoonTV 支持部署到 Cloudflare，提供两种方案。**在 Cloudflare 上无
 > 构建期必须内联的变量（**Build environment variables**）：`NEXT_PUBLIC_STORAGE_TYPE=upstash`
 > 运行时密钥（**Environment variables / Secrets**）：`UPSTASH_URL`、`UPSTASH_TOKEN`、`USERNAME`、`PASSWORD`（见下方矩阵）。
 
+> 🔧 **排查：构建成功但部署失败，报 `Wrangler requires at least Node.js v22.0.0` / `Failed: error occurred while running deploy command`**
+> 这说明你的 **Deploy command（部署命令）里仍写着 `npx wrangler deploy`**。立刻把它**清空留空**，并把：
+>
+> - **Build command** 改为 `CF_BUILD=1 pnpm dlx @cloudflare/next-on-pages@1`
+> - **Output directory** 改为 `.vercel/output/static`
+>
+> Pages Git 集成会**自动发布「输出目录」里的内容**，不需要、也不该用 `wrangler deploy`。`wrangler deploy` 是 **Workers** 的部署方式，会去找不存在的 Worker 入口，且 wrangler 4 强制 Node ≥22（构建镜像默认 20）直接报错。`next-on-pages` 内部跑 `next build` 并把产物转成 `.vercel/output/static`，**全程不调用 wrangler**，Node 22 问题自然消失。
+
 下面两节是**本地 CLI 等价命令**（如果你更习惯本地构建后上传，而非 Git 集成），与上面控制台填写二选一即可。
 
 #### 方案 A：Cloudflare Workers（推荐，使用 OpenNext）

@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { getCacheTime } from '@/lib/config';
 
 export const runtime = 'nodejs';
+// 强制动态渲染：该路由在构建期静态预渲染会因存储未初始化（无环境变量）而报错
+// （Cannot read properties of null ... getAdminConfig / getAllUsers）。
+// 设为 force-dynamic 后仅在请求时执行，运行时由 Upstash 等环境变量驱动。
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const controller = new AbortController();

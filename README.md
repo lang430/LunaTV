@@ -314,6 +314,14 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 
 将完整的配置文件 base58 编码后提供 http 服务即为订阅链接，可在 MoonTV 后台/Helios 中使用。
 
+此外，后台「配置订阅」现已兼容 **TVBox / 影视仓** 风格的标准 JSON 订阅（如 `tvbox.json`）。系统会自动将其转换为 MoonTV 配置：
+
+- **视频源**：仅导入标准苹果 CMS 接口（`type` 为 0 / 1 / 4 且 `api` 为 `http(s)` 地址）；`type:3` 的爬虫源（`.py` / `csp_XBPQ` 等）与特殊解析源会被自动跳过，因为它们依赖影视仓自带的爬虫运行时，MoonTV 无法消费。
+- **直播源**：`lives` 数组中的每个条目（支持一行多个 m3u 地址）会被拆分为独立的 MoonTV 直播源，并保留 `ua` / `epg` 字段。
+- 转换在「解码边界」完成，原有配置文件结构与播放链路保持不变，风险可控。
+
+> 注意：很多短剧类 TVBox 订阅几乎全为 `type:3` 爬虫源且 `lives` 为空，导入后 MoonTV 可能拿不到可用源——这属于格式兼容边界，并非程序异常。
+
 ## 自动更新
 
 可借助 [watchtower](https://github.com/containrrr/watchtower) 自动更新镜像容器

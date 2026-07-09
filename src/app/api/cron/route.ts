@@ -6,6 +6,7 @@ import { getConfig, refineConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
 import { refreshLiveChannels } from '@/lib/live';
+import { decodeSubscription } from '@/lib/tvbox';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -78,23 +79,18 @@ async function refreshConfig() {
 
       const configContent = await response.text();
 
-      // 对 configContent 进行 base58 解码
-      let decodedContent;
-      try {
-        const bs58 = (await import('bs58')).default;
-        const decodedBytes = bs58.decode(configContent);
-        decodedContent = new TextDecoder().decode(decodedBytes);
-      } catch (decodeError) {
-        console.warn('Base58 解码失败:', decodeError);
-        throw decodeError;
+      // 统一解析订阅：兼容原生 MoonTV 订阅（Base58）与 TVBox / 影视仓 订阅（JSON）
+      const result = await decodeSubscription(configContent);
+      if (!result.ok || !result.configFile) {
+        throw new Error(result.error || '订阅解析失败');
       }
 
       try {
-        JSON.parse(decodedContent);
+        JSON.parse(result.configFile);
       } catch (e) {
         throw new Error('配置文件格式错误，请检查 JSON 语法');
       }
-      config.ConfigFile = decodedContent;
+      config.ConfigFile = result.configFile;
       config.ConfigSubscribtion.LastCheck = new Date().toISOString();
       config = refineConfig(config);
       await db.saveAdminConfig(config);

@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+import { decodeSubscription } from '@/lib/tvbox';
 
 export const runtime = 'nodejs';
 
@@ -39,21 +40,22 @@ export async function POST(request: NextRequest) {
 
     const configContent = await response.text();
 
-    // 对 configContent 进行 base58 解码
-    let decodedContent;
-    try {
-      const bs58 = (await import('bs58')).default;
-      const decodedBytes = bs58.decode(configContent);
-      decodedContent = new TextDecoder().decode(decodedBytes);
-    } catch (decodeError) {
-      console.warn('Base58 解码失败', decodeError);
-      throw decodeError;
+    // 统一解析订阅：兼容原生 MoonTV 订阅（Base58 编码 JSON）与
+    // TVBox / 影视仓 订阅（标准 JSON），自动转换为 MoonTV 兼容配置
+    const result = await decodeSubscription(configContent);
+    if (!result.ok || !result.configFile) {
+      return NextResponse.json(
+        { error: result.error || '配置解析失败' },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      configContent: decodedContent,
-      message: '配置拉取成功'
+      configContent: result.configFile,
+      format: result.format,
+      summary: result.summary,
+      message: result.summary?.message || '配置拉取成功'
     });
 
   } catch (error) {

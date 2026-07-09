@@ -3155,6 +3155,8 @@ const ConfigFileComponent = ({ config, refreshConfig }: { config: AdminConfig | 
   const [subscriptionUrl, setSubscriptionUrl] = useState('');
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<string>('');
+  // 订阅拉取后的格式识别与转换摘要（TVBox / 影视仓 兼容提示）
+  const [subInfo, setSubInfo] = useState<{ format?: string; message?: string }>({});
 
 
 
@@ -3194,6 +3196,8 @@ const ConfigFileComponent = ({ config, refreshConfig }: { config: AdminConfig | 
         const data = await resp.json();
         if (data.configContent) {
           setConfigContent(data.configContent);
+          // 记录订阅格式与转换摘要，用于界面提示兼容性结果
+          setSubInfo({ format: data.format, message: data.summary?.message });
           // 更新本地配置的最后检查时间
           const currentTime = new Date().toISOString();
           setLastCheckTime(currentTime);
@@ -3275,7 +3279,8 @@ const ConfigFileComponent = ({ config, refreshConfig }: { config: AdminConfig | 
               className='w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
             />
             <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
-              输入配置文件的订阅地址，要求 JSON 格式，且使用 Base58 编码
+              支持 MoonTV 原生订阅（Base58 编码的 JSON）以及 TVBox / 影视仓 配置订阅（标准 JSON）。
+              影视仓爬虫源（type=3）与特殊解析源会被自动跳过，仅导入标准苹果 CMS 视频源与 m3u 直播源。
             </p>
           </div>
 
@@ -3332,6 +3337,15 @@ const ConfigFileComponent = ({ config, refreshConfig }: { config: AdminConfig | 
 
       {/* 配置文件编辑区域 */}
       <div className='space-y-4'>
+        {subInfo.message && (
+          <div className='rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200'>
+            {subInfo.format === 'tvbox' ? '已识别为 TVBox / 影视仓 订阅，' : ''}
+            {subInfo.message}
+            <span className='ml-1 text-xs text-blue-600 dark:text-blue-300'>
+              （自动跳过的源需在影视仓等壳中才能使用）
+            </span>
+          </div>
+        )}
         <div className='relative'>
           <textarea
             value={configContent}

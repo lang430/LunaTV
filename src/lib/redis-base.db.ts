@@ -4,6 +4,7 @@ import { createClient, RedisClientType } from 'redis';
 
 import { AdminConfig } from './admin.types';
 import { hashPassword, isHashed, verifyPassword } from './password';
+import { optionalNSRegexSource, withNS } from './storage-namespace';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -25,7 +26,10 @@ export interface RedisConnectionConfig {
 }
 
 // 添加Redis操作重试包装器
-function createRetryWrapper(clientName: string, getClient: () => RedisClientType) {
+function createRetryWrapper(
+  clientName: string,
+  getClient: () => RedisClientType
+) {
   return async function withRetry<T>(
     operation: () => Promise<T>,
     maxRetries = 3
@@ -44,7 +48,9 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
 
         if (isConnectionError && !isLastAttempt) {
           console.log(
-            `${clientName} operation failed, retrying... (${i + 1}/${maxRetries})`
+            `${clientName} operation failed, retrying... (${
+              i + 1
+            }/${maxRetries})`
           );
           console.error('Error:', err.message);
 
@@ -73,7 +79,10 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
 }
 
 // 创建客户端的工厂函数
-export function createRedisClient(config: RedisConnectionConfig, globalSymbol: symbol): RedisClientType {
+export function createRedisClient(
+  config: RedisConnectionConfig,
+  globalSymbol: symbol
+): RedisClientType {
   let client: RedisClientType | undefined = (global as any)[globalSymbol];
 
   if (!client) {
@@ -87,9 +96,13 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
       socket: {
         // 重连策略：指数退避，最大30秒
         reconnectStrategy: (retries: number) => {
-          console.log(`${config.clientName} reconnection attempt ${retries + 1}`);
+          console.log(
+            `${config.clientName} reconnection attempt ${retries + 1}`
+          );
           if (retries > 10) {
-            console.error(`${config.clientName} max reconnection attempts exceeded`);
+            console.error(
+              `${config.clientName} max reconnection attempts exceeded`
+            );
             return false; // 停止重连
           }
           return Math.min(1000 * Math.pow(2, retries), 30000); // 指数退避，最大30秒
@@ -144,7 +157,10 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
 // 抽象基类，包含所有通用的Redis操作逻辑
 export abstract class BaseRedisStorage implements IStorage {
   protected client: RedisClientType;
-  protected withRetry: <T>(operation: () => Promise<T>, maxRetries?: number) => Promise<T>;
+  protected withRetry: <T>(
+    operation: () => Promise<T>,
+    maxRetries?: number
+  ) => Promise<T>;
 
   constructor(config: RedisConnectionConfig, globalSymbol: symbol) {
     this.client = createRedisClient(config, globalSymbol);
@@ -153,7 +169,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 播放记录 ----------
   private prHashKey(user: string) {
-    return `u:${user}:pr`; // 一个用户的所有播放记录存在一个 Hash 中
+    return withNS(`u:${user}:pr`); // 一个用户的所有播放记录存在一个 Hash 中
   }
 
   async getPlayRecord(
@@ -192,9 +208,7 @@ export abstract class BaseRedisStorage implements IStorage {
   }
 
   async deletePlayRecord(userName: string, key: string): Promise<void> {
-    await this.withRetry(() =>
-      this.client.hDel(this.prHashKey(userName), key)
-    );
+    await this.withRetry(() => this.client.hDel(this.prHashKey(userName), key));
   }
 
   async deleteAllPlayRecords(userName: string): Promise<void> {
@@ -203,7 +217,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 收藏 ----------
   private favHashKey(user: string) {
-    return `u:${user}:fav`; // 一个用户的所有收藏存在一个 Hash 中
+    return withNS(`u:${user}:fav`); // 一个用户的所有收藏存在一个 Hash 中
   }
 
   async getFavorite(userName: string, key: string): Promise<Favorite | null> {
@@ -248,12 +262,14 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 用户注册 / 登录 ----------
   private userPwdKey(user: string) {
-    return `u:${user}:pwd`;
+    return withNS(`u:${user}:pwd`);
   }
 
   async registerUser(userName: string, password: string): Promise<void> {
     const hashed = hashPassword(password);
-    await this.withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
+    await this.withRetry(() =>
+      this.client.set(this.userPwdKey(userName), hashed)
+    );
     // 维护用户集合
     await this.withRetry(() => this.client.sAdd(this.usersSetKey(), userName));
   }
@@ -268,7 +284,9 @@ export abstract class BaseRedisStorage implements IStorage {
     // 平滑迁移：如果是明文密码且验证通过，自动升级为加盐哈希
     if (ok && !isHashed(storedStr)) {
       const hashed = hashPassword(password);
-      await this.withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
+      await this.withRetry(() =>
+        this.client.set(this.userPwdKey(userName), hashed)
+      );
     }
     return ok;
   }
@@ -288,6 +306,14 @@ export abstract class BaseRedisStorage implements IStorage {
     await this.withRetry(() =>
       this.client.set(this.userPwdKey(userName), hashed)
     );
+  }
+
+  // 获取原始存储密码（用于后台数据导出，不做校验）；命名空间安全
+  async getRawPassword(userName: string): Promise<string | null> {
+    const stored = await this.withRetry(() =>
+      this.client.get(this.userPwdKey(userName))
+    );
+    return stored === null ? null : ensureString(stored);
   }
 
   // 删除用户及其所有数据
@@ -313,7 +339,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 搜索历史 ----------
   private shKey(user: string) {
-    return `u:${user}:sh`; // u:username:sh
+    return withNS(`u:${user}:sh`); // u:username:sh
   }
 
   async getSearchHistory(userName: string): Promise<string[]> {
@@ -331,13 +357,17 @@ export abstract class BaseRedisStorage implements IStorage {
     // 插入到最前
     await this.withRetry(() => this.client.lPush(key, ensureString(keyword)));
     // 限制最大长度
-    await this.withRetry(() => this.client.lTrim(key, 0, SEARCH_HISTORY_LIMIT - 1));
+    await this.withRetry(() =>
+      this.client.lTrim(key, 0, SEARCH_HISTORY_LIMIT - 1)
+    );
   }
 
   async deleteSearchHistory(userName: string, keyword?: string): Promise<void> {
     const key = this.shKey(userName);
     if (keyword) {
-      await this.withRetry(() => this.client.lRem(key, 0, ensureString(keyword)));
+      await this.withRetry(() =>
+        this.client.lRem(key, 0, ensureString(keyword))
+      );
     } else {
       await this.withRetry(() => this.client.del(key));
     }
@@ -345,21 +375,25 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 获取全部用户 ----------
   private usersSetKey() {
-    return 'sys:users';
+    return withNS('sys:users');
   }
 
   async getAllUsers(): Promise<string[]> {
-    const members = await this.withRetry(() => this.client.sMembers(this.usersSetKey()));
+    const members = await this.withRetry(() =>
+      this.client.sMembers(this.usersSetKey())
+    );
     return ensureStringArray(members as any[]);
   }
 
   // ---------- 管理员配置 ----------
   private adminConfigKey() {
-    return 'admin:config';
+    return withNS('admin:config');
   }
 
   async getAdminConfig(): Promise<AdminConfig | null> {
-    const val = await this.withRetry(() => this.client.get(this.adminConfigKey()));
+    const val = await this.withRetry(() =>
+      this.client.get(this.adminConfigKey())
+    );
     return val ? (JSON.parse(val) as AdminConfig) : null;
   }
 
@@ -371,7 +405,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 跳过片头片尾配置 ----------
   private skipHashKey(user: string) {
-    return `u:${user}:skip`; // 一个用户的所有跳过配置存在一个 Hash 中
+    return withNS(`u:${user}:skip`); // 一个用户的所有跳过配置存在一个 Hash 中
   }
 
   private skipField(source: string, id: string) {
@@ -431,12 +465,14 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 数据迁移：旧扁平 key → Hash 结构 ----------
   private migrationKey() {
-    return 'sys:migration:hash_v2';
+    return withNS('sys:migration:hash_v2');
   }
 
   async migrateData(): Promise<void> {
     // 检查是否已迁移
-    const migrated = await this.withRetry(() => this.client.get(this.migrationKey()));
+    const migrated = await this.withRetry(() =>
+      this.client.get(this.migrationKey())
+    );
     if (migrated === 'done') return;
 
     console.log('开始数据迁移：扁平 key → Hash 结构...');
@@ -451,11 +487,15 @@ export abstract class BaseRedisStorage implements IStorage {
         });
 
         if (oldPrKeys.length > 0) {
-          const values = await this.withRetry(() => this.client.mGet(oldPrKeys));
+          const values = await this.withRetry(() =>
+            this.client.mGet(oldPrKeys)
+          );
           for (let i = 0; i < oldPrKeys.length; i++) {
             const raw = values[i];
             if (!raw) continue;
-            const match = oldPrKeys[i].match(/^u:(.+?):pr:(.+)$/);
+            const match = oldPrKeys[i].match(
+              new RegExp(optionalNSRegexSource() + 'u:(.+?):pr:(.+)$')
+            );
             if (!match) continue;
             const [, userName, field] = match;
             await this.withRetry(() =>
@@ -476,11 +516,15 @@ export abstract class BaseRedisStorage implements IStorage {
         });
 
         if (oldFavKeys.length > 0) {
-          const values = await this.withRetry(() => this.client.mGet(oldFavKeys));
+          const values = await this.withRetry(() =>
+            this.client.mGet(oldFavKeys)
+          );
           for (let i = 0; i < oldFavKeys.length; i++) {
             const raw = values[i];
             if (!raw) continue;
-            const match = oldFavKeys[i].match(/^u:(.+?):fav:(.+)$/);
+            const match = oldFavKeys[i].match(
+              new RegExp(optionalNSRegexSource() + 'u:(.+?):fav:(.+)$')
+            );
             if (!match) continue;
             const [, userName, field] = match;
             await this.withRetry(() =>
@@ -493,7 +537,9 @@ export abstract class BaseRedisStorage implements IStorage {
       }
 
       // 迁移 skipConfig：u:*:skip:* → u:username:skip (Hash)
-      const skipKeys = await this.withRetry(() => this.client.keys('u:*:skip:*'));
+      const skipKeys = await this.withRetry(() =>
+        this.client.keys('u:*:skip:*')
+      );
       if (skipKeys.length > 0) {
         const oldSkipKeys = skipKeys.filter((k) => {
           const parts = k.split(':');
@@ -501,11 +547,15 @@ export abstract class BaseRedisStorage implements IStorage {
         });
 
         if (oldSkipKeys.length > 0) {
-          const values = await this.withRetry(() => this.client.mGet(oldSkipKeys));
+          const values = await this.withRetry(() =>
+            this.client.mGet(oldSkipKeys)
+          );
           for (let i = 0; i < oldSkipKeys.length; i++) {
             const raw = values[i];
             if (!raw) continue;
-            const match = oldSkipKeys[i].match(/^u:(.+?):skip:(.+)$/);
+            const match = oldSkipKeys[i].match(
+              new RegExp(optionalNSRegexSource() + 'u:(.+?):skip:(.+)$')
+            );
             if (!match) continue;
             const [, userName, field] = match;
             await this.withRetry(() =>
@@ -518,17 +568,23 @@ export abstract class BaseRedisStorage implements IStorage {
       }
 
       // 迁移用户列表：从 KEYS u:*:pwd 构建 sys:users Set
-      const userSetExists = await this.withRetry(() => this.client.exists(this.usersSetKey()));
+      const userSetExists = await this.withRetry(() =>
+        this.client.exists(this.usersSetKey())
+      );
       if (!userSetExists) {
         const pwdKeys = await this.withRetry(() => this.client.keys('u:*:pwd'));
         const userNames = pwdKeys
           .map((k) => {
-            const match = k.match(/^u:(.+?):pwd$/);
+            const match = k.match(
+              new RegExp(optionalNSRegexSource() + 'u:(.+?):pwd$')
+            );
             return match ? match[1] : undefined;
           })
           .filter((u): u is string => typeof u === 'string');
         if (userNames.length > 0) {
-          await this.withRetry(() => this.client.sAdd(this.usersSetKey(), userNames));
+          await this.withRetry(() =>
+            this.client.sAdd(this.usersSetKey(), userNames)
+          );
           console.log(`迁移了 ${userNames.length} 个用户到 Set`);
         }
       }
@@ -543,11 +599,13 @@ export abstract class BaseRedisStorage implements IStorage {
 
   // ---------- 密码迁移：明文 → 加盐哈希 ----------
   private pwdMigrationKey() {
-    return 'sys:migration:pwd_hash_v1';
+    return withNS('sys:migration:pwd_hash_v1');
   }
 
   async migratePasswords(): Promise<void> {
-    const migrated = await this.withRetry(() => this.client.get(this.pwdMigrationKey()));
+    const migrated = await this.withRetry(() =>
+      this.client.get(this.pwdMigrationKey())
+    );
     if (migrated === 'done') return;
 
     console.log('开始密码迁移：明文 → 加盐哈希...');
@@ -568,7 +626,9 @@ export abstract class BaseRedisStorage implements IStorage {
         count++;
       }
 
-      await this.withRetry(() => this.client.set(this.pwdMigrationKey(), 'done'));
+      await this.withRetry(() =>
+        this.client.set(this.pwdMigrationKey(), 'done')
+      );
       console.log(`密码迁移完成，共迁移 ${count} 个用户`);
     } catch (error) {
       console.error('密码迁移失败:', error);

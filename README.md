@@ -345,20 +345,21 @@ Please make sure that all your non-static routes export: export const runtime = 
 
 MoonTV 的变量分两类，处理方式不同：
 
-| 变量                                    | 类别       | 必填 | 注入方式                       | 说明                                 |
-| --------------------------------------- | ---------- | ---- | ------------------------------ | ------------------------------------ |
-| `NEXT_PUBLIC_STORAGE_TYPE`              | 构建期内联 | ✅   | **构建环境**导出               | 固定 `upstash`                       |
-| `NEXT_PUBLIC_SITE_NAME`                 | 构建期内联 | ❌   | 构建环境导出                   | 站点名，默认 `MoonTV`                |
-| `NEXT_PUBLIC_SEARCH_MAX_PAGE`           | 构建期内联 | ❌   | 构建环境导出                   | 默认 `5`                             |
-| `NEXT_PUBLIC_DOUBAN_PROXY(_TYPE)`       | 构建期内联 | ❌   | 构建环境导出                   | 豆瓣代理                             |
-| `NEXT_PUBLIC_DOUBAN_IMAGE_PROXY(_TYPE)` | 构建期内联 | ❌   | 构建环境导出                   | 豆瓣图片代理                         |
-| `NEXT_PUBLIC_DISABLE_YELLOW_FILTER`     | 构建期内联 | ❌   | 构建环境导出                   | 默认 `false`                         |
-| `NEXT_PUBLIC_FLUID_SEARCH`              | 构建期内联 | ❌   | 构建环境导出                   | 默认 `true`（见下）                  |
-| `UPSTASH_URL`                           | 运行时密钥 | ✅   | `wrangler secret put`          | Upstash REST 地址                    |
-| `UPSTASH_TOKEN`                         | 运行时密钥 | ✅   | `wrangler secret put`          | Upstash Token                        |
-| `USERNAME`                              | 运行时密钥 | ✅   | `wrangler secret put`          | 站长用户名；**不设置则后台裸奔**     |
-| `PASSWORD`                              | 运行时密钥 | ✅   | `wrangler secret put`          | 站长密码；**不设置则任何人可进后台** |
-| `ANNOUNCEMENT`                          | 运行时变量 | ❌   | `wrangler secret put` / `vars` | 公告文案                             |
+| 变量                                    | 类别       | 必填 | 注入方式                          | 说明                                                                     |
+| --------------------------------------- | ---------- | ---- | --------------------------------- | ------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_STORAGE_TYPE`              | 构建期内联 | ✅   | **构建环境**导出                  | 固定 `upstash`                                                           |
+| `NEXT_PUBLIC_SITE_NAME`                 | 构建期内联 | ❌   | 构建环境导出                      | 站点名，默认 `MoonTV`                                                    |
+| `NEXT_PUBLIC_SEARCH_MAX_PAGE`           | 构建期内联 | ❌   | 构建环境导出                      | 默认 `5`                                                                 |
+| `NEXT_PUBLIC_DOUBAN_PROXY(_TYPE)`       | 构建期内联 | ❌   | 构建环境导出                      | 豆瓣代理                                                                 |
+| `NEXT_PUBLIC_DOUBAN_IMAGE_PROXY(_TYPE)` | 构建期内联 | ❌   | 构建环境导出                      | 豆瓣图片代理                                                             |
+| `NEXT_PUBLIC_DISABLE_YELLOW_FILTER`     | 构建期内联 | ❌   | 构建环境导出                      | 默认 `false`                                                             |
+| `NEXT_PUBLIC_FLUID_SEARCH`              | 构建期内联 | ❌   | 构建环境导出                      | 默认 `true`（见下）                                                      |
+| `UPSTASH_URL`                           | 运行时密钥 | ✅   | `wrangler secret put`             | Upstash REST 地址                                                        |
+| `UPSTASH_TOKEN`                         | 运行时密钥 | ✅   | `wrangler secret put`             | Upstash Token                                                            |
+| `USERNAME`                              | 运行时密钥 | ✅   | `wrangler secret put`             | 站长用户名；**不设置则后台裸奔**                                         |
+| `PASSWORD`                              | 运行时密钥 | ✅   | `wrangler secret put`             | 站长密码；**不设置则任何人可进后台**                                     |
+| `ANNOUNCEMENT`                          | 运行时变量 | ❌   | `wrangler secret put` / `vars`    | 公告文案                                                                 |
+| `STORAGE_NAMESPACE`                     | 运行时变量 | ❌   | `wrangler vars` / Render 环境变量 | 部署命名空间，给所有存储 key 加 `<ns>:` 前缀，实现多部署数据隔离（见下） |
 
 > **`NEXT_PUBLIC_*` 是构建期内联变量**：必须在 `next build` / `open-next build` 阶段的**环境**中 export（CI 变量或本地 shell），仅写在 `wrangler.jsonc` 的 `vars` 里**不会**内联进客户端包，前端会回退到 `localstorage` 导致 Upstash 失效。可在 `wrangler.toml` / `wrangler.jsonc` 的 `vars` 里同时保留一份供服务端运行时读取。
 >
@@ -375,6 +376,90 @@ MoonTV 的变量分两类，处理方式不同：
 - **定时任务（订阅自动更新）**：`/api/cron` 用于刷新订阅配置。Cloudflare 上可用 **Cron Triggers**（`wrangler.toml` 的 `[triggers] cron = [...]`，或控制台配置）定时调用该接口；当前路由无独立 token 鉴权，务必配合 `USERNAME/PASSWORD` 与平台访问控制使用。
 - **PWA**：`next-pwa` 生成的 `public/sw.js` 会作为静态资源随构建发布，通常无需额外处理。
 - **兼容性日期**：`compatibility_date` 设为 `2024-09-23`（可按需上调），确保 `nodejs_compat` 行为稳定。
+
+#### Cloudflare 与 Render 的差异 & 多部署数据隔离
+
+如果你同时跑 **Cloudflare（Workers + Upstash）** 和 **Render（Docker）** 两套部署，必须先理解它们的本质差异，否则数据会互相串台。
+
+**① 两套部署的本质区别**
+
+| 维度       | Cloudflare（Workers + OpenNext）                                                             | Render（Docker 容器）                                                 |
+| ---------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 运行时     | Serverless V8 isolate，`nodejs_compat`，**无原生 TCP 套接字**                                | 完整 Node.js 容器，**有 TCP 套接字**                                  |
+| 强制存储   | **只能用 Upstash（HTTP Redis）**，`NEXT_PUBLIC_STORAGE_TYPE=upstash`                         | 可用 Kvrocks / Redis（TCP）或 Upstash，**三选一**                     |
+| 构建产物   | `.open-next/worker.js` + `assets/`，由 `wrangler deploy` 上线                                | `.next/standalone/`（server.js），由 `start.js` 在容器里跑，监听 3000 |
+| 构建开关   | 需 `CF_BUILD=1`（关闭 standalone、保留原生 crypto）                                          | 不需要，走默认 `output: 'standalone'`                                 |
+| CPU / 时长 | 有 CPU 时间上限（免费 10s，付费可调）                                                        | 仅请求超时限制，无 CPU 时间上限                                       |
+| 定时任务   | 用 **Cron Triggers** 调 `/api/cron`                                                          | 由 `start.js` 内置每小时轮询 `/api/cron`（或 Render Cron Jobs）       |
+| 密钥注入   | 非敏感变量写 `wrangler.jsonc` 的 `vars`；`UPSTASH_URL/TOKEN/USERNAME/PASSWORD` 走加密 Secret | 全部写在 Render 服务环境变量里                                        |
+
+**② 为什么必须做数据隔离**
+
+两套存储实现（`upstash.db.ts` 与 `redis-base.db.ts` / `kvrocks.db.ts`）使用的是**完全相同**的 key 方案：
+
+```
+u:<用户>:pr / u:<用户>:fav / u:<用户>:pwd / u:<用户>:sh / u:<用户>:skip
+sys:users / admin:config / sys:migration:hash_v2 / sys:migration:pwd_hash_v1
+```
+
+如果 Cloudflare 的 Upstash 和 Render 的存储**指向同一个 Redis/Upstash 实例**，所有 key 会直接相撞：同名用户、同一份收藏/播放记录互相覆盖，管理员配置互相踩。即便用不同实例，key 长得一模一样也不利于排查。
+
+**③ 隔离策略（任选其一，推荐 A + B 双保险）**
+
+- **策略 A（基础设施级，推荐、零风险）**：Cloudflare 用**独立的 Upstash 数据库**，Render 用**另一个独立的数据库**（Upstash 实例或 Render 自带 Redis）。两边 `UPSTASH_URL` / `REDIS_URL` / `KVROCKS_URL` 各填各的，物理隔离，互不干扰。
+
+- **策略 B（key 级命名空间，代码已支持）**：若想**共用同一个数据库**，通过环境变量 `STORAGE_NAMESPACE` 给所有 key 加前缀：
+
+  - Cloudflare：在 `wrangler.jsonc` 的 `vars` 里设 `"STORAGE_NAMESPACE": "cf"` → key 形如 `cf:u:admin:pr` / `cf:sys:users`
+  - Render：在 Render 服务环境变量里设 `STORAGE_NAMESPACE=render` → key 形如 `render:u:admin:pr` / `render:sys:users`
+
+  这样即使共用一个实例，两套部署的数据也完全隔离、清晰可辨。不设（空）则保持旧行为（无前缀），**向后兼容**。
+
+> ⚠️ **对已有部署启用 `STORAGE_NAMESPACE` 是破坏性变更**：旧数据写在无前缀 key 上，新代码读带前缀 key，会读不到（表现为用户「丢失」）。两种处理：
+>
+> 1. 直接全新开始（新建实例/数据库）；或
+> 2. 上线前对旧库执行一次 key 重命名（scan 出 `u:*` / `sys:*` / `admin:*` 批量 `RENAME` 为 `<ns>:原key`）。示例（Upstash/Redis CLI）：
+>    ```bash
+>    # 以 cf 为例：把无前缀 key 改为 cf: 前缀（请先在副本上演练）
+>    EVAL "local ns='cf:' local cur=0 repeat local r=redis.call('SCAN',cur,'MATCH',ARGV[1],'COUNT',500) cur=tonumber(r[1]) for _,k in ipairs(r[2]) do redis.call('RENAME',k,ns..k) end until cur==0" 0 "u:*"
+>    EVAL "local ns='cf:' local cur=0 repeat local r=redis.call('SCAN',cur,'MATCH',ARGV[1],'COUNT',500) cur=tonumber(r[1]) for _,k in ipairs(r[2]) do redis.call('RENAME',k,ns..k) end until cur==0" 0 "sys:*"
+>    EVAL "local ns='cf:' local cur=0 repeat local r=redis.call('SCAN',cur,'MATCH',ARGV[1],'COUNT',500) cur=tonumber(r[1]) for _,k in ipairs(r[2]) do redis.call('RENAME',k,ns..k) end until cur==0" 0 "admin:*"
+>    ```
+
+#### Render 部署（Docker）
+
+Render 走 **Docker** 路线（与 Zeabur / 自建 Docker 一致），用仓库根 `Dockerfile`，具备完整 Node 运行时与 TCP 套接字。
+
+1. 在 Render 新建 **Web Service** → 连接 Git 仓库 → Runtime 选 `Docker` → 端口 `3000`。
+2. 在 Render 服务的 **Environment** 中设置变量：
+
+   ```env
+   # 必填：管理员账号
+   USERNAME=admin
+   PASSWORD=your_secure_password
+
+   # 必填：存储配置（Render 有 TCP，三选一）
+   # 方案 1：Upstash（与 Cloudflare 同款，但建议用独立实例做隔离）
+   NEXT_PUBLIC_STORAGE_TYPE=upstash
+   UPSTASH_URL=https://你的-upstash-实例.upstash.io
+   UPSTASH_TOKEN=你的-token
+
+   # 方案 2：Render 自带 Redis（TCP，性能更好）
+   # NEXT_PUBLIC_STORAGE_TYPE=redis
+   # REDIS_URL=redis://red-xxxx:6379
+
+   # 方案 3：Kvrocks（TCP）
+   # NEXT_PUBLIC_STORAGE_TYPE=kvrocks
+   # KVROCKS_URL=redis://kvrocks:6666
+
+   # 关键：与 Cloudflare 区分命名空间（共用库时隔离数据）
+   STORAGE_NAMESPACE=render
+   ```
+
+3. 构建命令留空（Render 自动读 `Dockerfile`）；`NEXT_PUBLIC_*` 在镜像构建期内联，务必在构建环境变量里也填一份（与上面运行时变量一致），否则前端会回退 localStorage 导致存储失效。
+4. 部署完成后访问 Render 分配的域名即可。
+
+> 与 Cloudflare 的对照：Cloudflare **只能** Upstash 且走 `CF_BUILD=1` + `wrangler deploy`；Render **任选** Kvrocks/Redis/Upstash 且走 Docker。**两套部署务必通过策略 A/B 隔离数据**（独立数据库，或 `STORAGE_NAMESPACE` 不同值）。
 
 ## 配置文件
 
@@ -443,25 +528,26 @@ dockge/komodo 等 docker compose UI 也有自动更新功能
 
 ## 环境变量
 
-| 变量                                | 说明                     | 可选值                   | 默认值                                                                                                                     |
-| ----------------------------------- | ------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| USERNAME                            | 站长账号                 | 任意字符串               | 无默认，必填字段                                                                                                           |
-| PASSWORD                            | 站长密码                 | 任意字符串               | 无默认，必填字段                                                                                                           |
-| SITE_BASE                           | 站点 url                 | 形如 https://example.com | 空                                                                                                                         |
-| NEXT_PUBLIC_SITE_NAME               | 站点名称                 | 任意字符串               | MoonTV                                                                                                                     |
-| ANNOUNCEMENT                        | 站点公告                 | 任意字符串               | 本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。 |
-| NEXT_PUBLIC_STORAGE_TYPE            | 播放记录/收藏的存储方式  | redis、kvrocks、upstash  | 无默认，必填字段                                                                                                           |
-| KVROCKS_URL                         | kvrocks 连接 url         | 连接 url                 | 空                                                                                                                         |
-| REDIS_URL                           | redis 连接 url           | 连接 url                 | 空                                                                                                                         |
-| UPSTASH_URL                         | upstash redis 连接 url   | 连接 url                 | 空                                                                                                                         |
-| UPSTASH_TOKEN                       | upstash redis 连接 token | 连接 token               | 空                                                                                                                         |
-| NEXT_PUBLIC_SEARCH_MAX_PAGE         | 搜索接口可拉取的最大页数 | 1-50                     | 5                                                                                                                          |
-| NEXT_PUBLIC_DOUBAN_PROXY_TYPE       | 豆瓣数据源请求方式       | 见下方                   | direct                                                                                                                     |
-| NEXT_PUBLIC_DOUBAN_PROXY            | 自定义豆瓣数据代理 URL   | url prefix               | (空)                                                                                                                       |
-| NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE | 豆瓣图片代理类型         | 见下方                   | direct                                                                                                                     |
-| NEXT_PUBLIC_DOUBAN_IMAGE_PROXY      | 自定义豆瓣图片代理 URL   | url prefix               | (空)                                                                                                                       |
-| NEXT_PUBLIC_DISABLE_YELLOW_FILTER   | 关闭色情内容过滤         | true/false               | false                                                                                                                      |
-| NEXT_PUBLIC_FLUID_SEARCH            | 是否开启搜索接口流式输出 | true/ false              | true                                                                                                                       |
+| 变量                                | 说明                     | 可选值                       | 默认值                                                                                                                     |
+| ----------------------------------- | ------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| USERNAME                            | 站长账号                 | 任意字符串                   | 无默认，必填字段                                                                                                           |
+| PASSWORD                            | 站长密码                 | 任意字符串                   | 无默认，必填字段                                                                                                           |
+| SITE_BASE                           | 站点 url                 | 形如 https://example.com     | 空                                                                                                                         |
+| NEXT_PUBLIC_SITE_NAME               | 站点名称                 | 任意字符串                   | MoonTV                                                                                                                     |
+| ANNOUNCEMENT                        | 站点公告                 | 任意字符串                   | 本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。 |
+| NEXT_PUBLIC_STORAGE_TYPE            | 播放记录/收藏的存储方式  | redis、kvrocks、upstash      | 无默认，必填字段                                                                                                           |
+| KVROCKS_URL                         | kvrocks 连接 url         | 连接 url                     | 空                                                                                                                         |
+| REDIS_URL                           | redis 连接 url           | 连接 url                     | 空                                                                                                                         |
+| UPSTASH_URL                         | upstash redis 连接 url   | 连接 url                     | 空                                                                                                                         |
+| UPSTASH_TOKEN                       | upstash redis 连接 token | 连接 token                   | 空                                                                                                                         |
+| NEXT_PUBLIC_SEARCH_MAX_PAGE         | 搜索接口可拉取的最大页数 | 1-50                         | 5                                                                                                                          |
+| NEXT_PUBLIC_DOUBAN_PROXY_TYPE       | 豆瓣数据源请求方式       | 见下方                       | direct                                                                                                                     |
+| NEXT_PUBLIC_DOUBAN_PROXY            | 自定义豆瓣数据代理 URL   | url prefix                   | (空)                                                                                                                       |
+| NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE | 豆瓣图片代理类型         | 见下方                       | direct                                                                                                                     |
+| NEXT_PUBLIC_DOUBAN_IMAGE_PROXY      | 自定义豆瓣图片代理 URL   | url prefix                   | (空)                                                                                                                       |
+| NEXT_PUBLIC_DISABLE_YELLOW_FILTER   | 关闭色情内容过滤         | true/false                   | false                                                                                                                      |
+| NEXT_PUBLIC_FLUID_SEARCH            | 是否开启搜索接口流式输出 | true/ false                  | true                                                                                                                       |
+| STORAGE_NAMESPACE                   | 部署命名空间（数据隔离） | 任意字符串（如 cf / render） | 空（无前缀，向后兼容）。见「Cloudflare 与 Render 的差异 & 多部署数据隔离」                                                 |
 
 NEXT_PUBLIC_DOUBAN_PROXY_TYPE 选项解释：
 
